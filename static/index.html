@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>MESSENGER</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="v-app">
+        <h1>{{ title }}</h1>
+        <h2 id="nameElem" style="display: none;">Welcome, {{ username }}</h2>
+        
+        <p>
+            <h3>Online users : </h3>
+            <ul>
+                <li v-for="user of onlineUsers">{{ user }}</li>
+            </ul>
+        </p>
+        <form>
+            MESSAGE : <input v-model="text" type="text"/><br><br>
+            TO : <input v-model="to" type="text"/><br><br>
+            <button @click.prevent="sendMsg">send</button>
+        </form>
+        <p>
+            <ul>
+                <li v-for="msg of messages">{{ msg }}</li>
+            </ul>
+        </p>
+    </div>
+    <script>
+        let app = new Vue({
+            el: '#v-app',
+            data: {
+                title: "socket test",
+                text: '',
+                to: '',
+                messages: [],
+                socket: null,
+                username: null,
+                onlineUsers: []
+            },
+            methods: {
+                sendMsg() {
+                    let sendObj = { from: this.username, message: this.text, to: this.to }
+                    this.socket.emit('messageToServer', sendObj, (res) => {
+                        if(res.status == 1) {
+                            alert(res.message);
+                        }
+                    })
+                    this.text = ""
+                },
+
+                recieveNow(from, msg) {
+                    let msgString = from + ": " + msg;
+                    this.messages.push(msgString);
+                },
+
+                setActiveUsers(users) {
+                    this.onlineUsers = users;
+                },
+
+                getActiveUsers() {
+                    this.socket.emit('userActivityToServer', {}, (res) => {
+                        this.setActiveUsers(res.users)
+                        console.log(this.onlineUsers)
+                    })
+                }
+            },
+            mounted() {
+                this.socket = io('http://localhost:3000')
+                this.getActiveUsers();
+
+                this.username = prompt('Enter your username:');
+                while(true) {
+                    if(this.username == '') {
+                        this.username = prompt('username cant be empty');
+                    } else if (this.onlineUsers.includes(this.username)) {
+                        this.username = prompt('username already taken');
+                    } else {
+                        break;
+                    }
+                }
+
+                document.getElementById('nameElem').style.display = "block";
+                
+                this.socket.emit('registerUser', this.username)
+
+                this.socket.on('messageToClient', (response) => {
+                    this.recieveNow(response.from, response.message);
+                })
+
+                this.socket.on('userActivity', (response) => {
+                    this.setActiveUsers(response.users);
+                    console.log(response)
+                })
+            }
+        })
+    </script>
+</body>
+</html>
